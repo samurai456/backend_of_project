@@ -28,6 +28,8 @@ router.delete('/user/delete', verifyToken, requireAuth({admin: true}), userContr
 router.get('/user/email', verifyToken, requireAuth(), userController.getEmail)
 router.put('/user/theme/:theme', verifyToken, requireAuth(), userController.changeTheme)
 router.put('/user/lang/:lang', verifyToken, requireAuth(), userController.changeLang)
+router.get('/user/reset-password/:email', userController.handleResetPasswordRequest)
+router.post('/user/reset-password', userController.resetPassword)
 
 router.post('/topic', verifyToken, requireAuth({admin: true}) , topicController.createMany)
 router.get('/topic/all', topicController.getAll)

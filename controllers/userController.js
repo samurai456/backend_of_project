@@ -1,8 +1,10 @@
 const { User } = require('../models/user')
+const { Token } = require('../models/token')
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
 const jwt = require('jsonwebtoken')
 const { proxify } = require('./helper')
-
+const { passwordResetMail } = require('../passwordResetMail')
 
 class UserController{
     async signUp(req, res){
@@ -153,6 +155,55 @@ class UserController{
 
     async getEmail(req, res){
         res.send({email: req.user.email})
+    }
+
+    async handleResetPasswordRequest(req, res){
+        const user = await User.findOne({email: req.params.email})
+        if(!user) return res.send({type: 'failed', msg: 'user with this email does not exists'})
+        await this.deleteToken(user._id)
+        const resetToken = await this.createResetToken(user._id)
+        passwordResetMail(
+            user.email, 
+            `${process.env.frontend}/reset-password/${resetToken}/${user.id}`
+        )
+        res.send({type: 'success'})
+    }
+
+    async deleteToken(userId){
+        const token = await Token.findOne({user: userId})
+        if(token) await token.deleteOne()
+    }
+
+    async createResetToken(userId){
+        const resetToken = crypto.randomBytes(32).toString('hex')
+        const hash = bcrypt.hashSync(resetToken, 8)
+        await Token.create({user: userId, token: hash })
+        return resetToken
+    }
+
+    async resetPassword(req, res){
+        const token = await Token.findOne({user: req.body.userId})
+        if(!token || !bcrypt.compareSync(req.body.token, token.token)){
+            return res.send({ type: 'failed', msg: 'password reset link expired'})
+        }
+        if(!req.body.password) return res.send({ type: 'failed', msg: 'password required' })
+        await token.deleteOne()
+        this.updatePassword(req, res)
+    }
+
+    async updatePassword(req, res){
+        const user = await User.findOneAndUpdate(
+            {_id: req.body.userId}, 
+            {   
+                lastLoginDate: Date.now(), 
+                password: bcrypt.hashSync(req.body.password, 8)
+            }, 
+            {returnOriginal: false}
+        )
+        if(!user){
+            return res.send({ type: 'failed', msg: 'user is deleted by admin'})
+        }
+        return res.send({type: 'success', msg: 'password reset successfully'})
     }
 }
 

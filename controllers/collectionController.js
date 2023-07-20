@@ -43,7 +43,7 @@ class CollectionController{
     async update(req){
         req.collection.name = req.body.name
         req.collection.description = req.body.description
-        req.collection.topic = req.body.topic
+        if(req.body.topic) req.collection.topic = req.body.topic
         req.collection.itemFields = JSON.parse(req.body.itemFields)
         if(req.file) req.collection.img = await this.saveImg(req)
         else if(req.body.img==='undefined') req.collection.img = undefined

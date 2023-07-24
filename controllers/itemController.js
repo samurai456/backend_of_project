@@ -131,9 +131,9 @@ class ItemController {
 
     async getItemsOfCollection(req, res){
         const i = await this.getFilteredData(req.body, req.collection._id)
-        const p = i.length / 10
+        const p = i.length / 20
         const pages = Math.ceil(p) || 1
-        const items = i.slice((req.params.page-1)*10, req.params.page*10)
+        const items = i.slice((req.params.page-1)*20, req.params.page*20)
         res.send({type: 'items-of-collection', items, pages})
     }
 

@@ -130,8 +130,108 @@ class ItemController {
     }
 
     async getItemsOfCollection(req, res){
-        const items = await Item.find({collectionId: req.collection.id})
-        res.send({type: 'items-of-collection', items})
+        const i = await this.getFilteredData(req.body, req.collection._id)
+        const p = i.length / 10
+        const pages = Math.ceil(p) || 1
+        const items = i.slice((req.params.page-1)*10, req.params.page*10)
+        res.send({type: 'items-of-collection', items, pages})
+    }
+
+    async getFilteredData(filters, collId){
+        const commandsToDB = this.getCommandsToDB(filters)
+        const collectionId = new mongoose.Types.ObjectId(collId)
+        return await Item.aggregate([
+            {$match: {collectionId}},
+            ...commandsToDB
+        ])
+    }
+
+    getCommandsToDB(filters){
+        const commands = filters.map(i=>{
+            if(i.type==='number') return this.getNumberFiltering(i)
+            if(['text', 'string'].includes(i.type)) return this.getStringFiltering(i)
+            if(i.type==='date') return this.getDateFiltering(i)
+            if(i.type==='checkbox') return this.getCheckboxFiltering(i)
+            if(i.type==='options') return this.getOptionsFiltering(i)
+            if(i.type==='name') return this.getNameFiltering(i)
+        })
+        return commands.reduce((accum, i)=>[...accum, ...i], [])
+    }
+
+    getNumberFiltering(x){
+        if(!x.filt) return []
+        if(!x.filt.min&& !x.filt.max) return []
+        const commands = [ 
+            {$addFields: {[`__${x.name}`]: {$convert: {
+                input: `$__${x.name}`, 
+                to: 'double', 
+                onError: ''
+            }}}},
+            {$match: {$expr: {$ne: [`$__${x.name}`,'']}}}
+        ]
+        if(x.filt.min){
+            commands.push({$match: {$expr: {$gte: [`$__${x.name}`, Number(x.filt.min)] }} })
+        }
+        if(x.filt.max){
+            commands.push({$match: {$expr: {$lte: [`$__${x.name}`, Number(x.filt.max)] }} })
+        }
+        return commands
+    }
+
+    getStringFiltering(x){
+        if(!x.filt) return []
+        return [
+            { $addFields: { containsString: { $regexMatch: { 
+                input: `$__${x.name}`, 
+                regex: RegExp(x.filt, 'i')
+            }}}},
+            { $match: { containsString: true}},
+        ]
+    }
+
+    getDateFiltering(x){
+        if(!x.filt) return []
+        if(!x.filt.from&& !x.filt.to) return []
+        const commands = [ 
+            {$addFields: {[`date__${x.name}`]: {$convert: {
+                input: `$__${x.name}`, 
+                to: 'date', 
+                onError: ''
+            }}}},
+            {$match: {$expr: {$ne: [`$__${x.name}`,'']}}}
+        ]
+        if(x.filt.from){
+            const d = new Date(x.filt.from)
+            commands.push({$match: {$expr: {$gte: [`$date__${x.name}`, d] }}})
+        }
+        if(x.filt.to){
+            const d = new Date(x.filt.to)
+            commands.push({$match: {$expr: {$lte: [`$date__${x.name}`, d] }}})
+        }
+        return commands
+    }
+
+    getCheckboxFiltering(x){
+        if(!x.hasOwnProperty('filt')|| x.filt==='') return []
+        return [ {$match: {$expr: {$eq: [`$__${x.name}`, x.filt] }}} ]
+    }
+
+    getOptionsFiltering(x){
+        if(!x.filt) return []
+        return [ {$match: {$expr: {$eq: [`$__${x.name}`, x.filt] }}} ]
+    }
+
+    getNameFiltering(x){
+        if(!x.filt) return []
+        return [ { $match: {$expr: { $regexMatch: { 
+            input: '$name', 
+            regex: RegExp(x.filt, 'i')
+        }}}} ]
+    }
+
+    async getFilteredItemsOfCollection(req, res){
+        const items = await this.getFilteredData(req.body, req.collection._id)
+        res.send({items})
     }
 
     async getItem(req, res){
@@ -312,13 +412,21 @@ class ItemController {
                 ],
                 as: 'author'
             }},
-            { $addFields: { 'author': { $first: '$author' }}},
-            { $match: { 'author': {$exists: true}}},
+            { $addFields: { author: { $first: '$author' }}},
+            { $match: { author: {$exists: true}}},
             { $addFields: { textScore: {$meta: 'textScore'}}},
             { $addFields: { resultFrom: 'comment'}},
         ])
     }
 
+    async some(req, res){
+        console.log(req.body)
+        res.send({some: await Item.aggregate([
+            {$addFields: {max: {$toInt: '$__max speed'}}},
+            {$match: {$expr: {$lt: ['$max' ,300]}}}
+
+        ])})
+    }
 }
 
 module.exports.itemController = proxify(new ItemController)

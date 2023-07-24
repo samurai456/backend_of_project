@@ -45,7 +45,8 @@ router.delete('/collection/:collectionId', verifyToken, requireAuth(), attachCol
 router.get('/item/last10', itemController.getLast10)
 router.get('/item/items-by-tag/:tagId', requireValidTag, itemController.getItemsByTag)
 router.post('/item/:collectionId/', verifyToken, requireAuth(), attachCollection, itemController.createItem)
-router.get('/item/items-of-collection/:collectionId', attachCollection, itemController.getItemsOfCollection )
+router.post('/item/items-of-collection/:collectionId/:page', attachCollection, itemController.getItemsOfCollection )
+router.post('/item/download-items-of-collection/:collectionId', attachCollection, itemController.getFilteredItemsOfCollection)
 router.get('/item/:itemId', itemController.getItem)
 router.get('/item/for-editing/:itemId', itemController.getItemForEditing)
 router.put('/item/:itemId', verifyToken, requireAuth(), attachItem, itemController.updateItem)
@@ -61,5 +62,7 @@ router.get('/tag/by-start/:tagStart', tagController.getTagsByStart)
 router.get('/like/:itemId', verifyToken, likeController.getItemLikeInfo)
 router.delete('/like/:itemId', verifyToken, requireAuth(), attachItem, likeController.deleteLike)
 router.post('/like/:itemId', verifyToken, requireAuth(), attachItem, likeController.createLike)
+
+router.post('/some', itemController.some)
 
 module.exports = { router };
